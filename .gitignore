@@ -22,3 +22,76 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 📦 وابستگی‌ها (Dependencies)
+node_modules/
+.pnp
+.pnp.js
+
+# 🏗️ خروجی ساخت (Build Output)
+dist/
+build/
+*.tsbuildinfo
+
+# 🔐 متغیرهای محیطی (Environment Variables)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 📝 لاگ‌ها و دیباگ (Logs & Debug)
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.log
+
+# 🗑️ کش و فایل‌های موقت (Cache & Temp)
+.eslintcache
+.vite/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+
+# 🧪 گزارش‌های تست (Test Coverage)
+coverage/
+*.lcov
+.nyc_output
+
+# 💻 فایل‌های سیستم‌عامل (OS Files)
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+
+# 🔧 تنظیمات IDEها (Editor/IDE)
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.settings/
+.classpath
+.factorypath
+
+# 🚀 تنظیمات Deploy (Deployment)
+.vercel
+.netlify
+.firebase
+.aws
+
+# 📦 فایل‌های فشرده (Archives)
+*.zip
+*.tar.gz
+*.rar
+
+# 🔑 کلیدهای خصوصی و گواهینامه‌ها (Private Keys & Certs)
+*.pem
+*.key
+*.crt
+*.p12
