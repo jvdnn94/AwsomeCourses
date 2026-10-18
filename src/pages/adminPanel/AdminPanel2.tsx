@@ -1,3 +1,4 @@
+//نسخه اولیه بدون استفاده از ری اکت کوئری
 // src/pages/AdminPanel.tsx
 import { useState, useEffect } from "react";
 import api from "../../utils/api";

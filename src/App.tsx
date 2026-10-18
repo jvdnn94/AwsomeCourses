@@ -11,7 +11,7 @@ import CoursesList from './pages/courseList/CourseList';
 import AuthPage from './pages/Auth/Auth';
 import UserCourseDetail from './pages/CoursePage/coursePage';
 import Dashboard from './pages/Dashboard/dashboard';
-import AdminPanel from './pages/adminPanel/AdminPanel2';
+import AdminPanel from './pages/adminPanel/AdminPanel';
 
 function App() {
   
