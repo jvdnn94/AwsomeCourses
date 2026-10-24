@@ -73,7 +73,7 @@ const CoursesList = () => {
 
   if (isError) {
     return (
-      <div className="max-w-md mx-auto mt-16 bg-red-50 border border-red-200 p-6 rounded-xl text-center">
+      <div className="max-w-md mx-auto mt-20 bg-red-50 border border-red-200 p-6 rounded-xl text-center">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
         <p className="text-red-600 font-medium">
           {error instanceof Error ? error.message : 'خطا در دریافت لیست دوره‌ها'}
@@ -84,7 +84,7 @@ const CoursesList = () => {
 
   return (
     <div>
-      <div className="mb-8 flex justify-between items-end">
+      <div className="mb-8 mt-4 flex justify-between items-end">
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">کتابخانه دوره‌ها</h1>
           <p className="text-gray-600">

@@ -156,7 +156,7 @@ const UserCourseDetail = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8 mt-1">
       {/* هدر دوره */}
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">{course.Title}</h1>

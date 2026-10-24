@@ -20,7 +20,7 @@ function App() {
       <Router>
         <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
           <Navbar />
-          <main className="container mx-auto px-4 py-8">
+          <main className="container mx-auto px-4 pb-2 pt-px">
             <Routes>
               {/* ۱. روت اصلی: صفحه خوش‌آمدگویی */}
               <Route path="/" element={<LandingPage />} />

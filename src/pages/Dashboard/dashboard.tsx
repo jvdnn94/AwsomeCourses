@@ -85,7 +85,7 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 mt-2">
       <div className="flex items-center gap-4 mb-8">
         <div className="p-4 bg-blue-100 rounded-full">
           <GraduationCap className="w-8 h-8 text-blue-600" />
