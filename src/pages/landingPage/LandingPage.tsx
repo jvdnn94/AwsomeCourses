@@ -17,7 +17,7 @@ const LandingPage = () => {
   const { isAuthenticated } = useAuth();
 
   return (
-    <div className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="relative overflow-hidden bg-linear-to-br from-slate-50 via-blue-50 to-indigo-50">
       
       {/* 🎨 Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -55,7 +55,7 @@ const LandingPage = () => {
               <br className="hidden md:block" />
               <span className="relative inline-block">
                 <span className="relative z-10 text-gray-900">متحول</span>
-                <span className="absolute bottom-2 left-0 w-full h-3 bg-yellow-300/60 -z-0 rounded-sm"></span>
+                <span className="absolute bottom-2 left-0 w-full h-3  -z-0 rounded-sm"></span>
               </span>
               <span className="text-gray-900"> کنید</span>
             </h1>
