@@ -8,7 +8,7 @@ import LandingPage from './pages/landingPage/LandingPage';
  import ProtectedRoute from './component/ProtectedRoute';
 import Navbar from './component/navbar/Navbar';
 import CoursesList from './pages/courseList/CourseList';
-import AuthPage from './pages/Auth/Auth';
+import AuthPage from './pages/User/User';
 import UserCourseDetail from './pages/CoursePage/coursePage';
 import Dashboard from './pages/Dashboard/dashboard';
 import AdminPanel from './pages/adminPanel/AdminPanel';

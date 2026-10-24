@@ -1,72 +1,88 @@
 // src/pages/Dashboard.tsx
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
+import { useQueries } from "@tanstack/react-query"; // ✅ هوک جدید برای چندین درخواست همزمان
 import api from "../../utils/api";
 import CourseCard from "../../component/UI/courseCard";
 import { Loader2, GraduationCap, BookOpen } from "lucide-react";
 import type { Course, UserCourse } from "../../types/authtypes";
 
 const Dashboard = () => {
-  const [userCourses, setUserCourses] = useState<UserCourse[]>([]);
-  const [coursesMap, setCoursesMap] = useState<Map<string, Course>>(new Map());
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
+  // ✅ اجرای دو درخواست به صورت موازی با useQueries
+  const [enrollmentsQuery, coursesQuery] = useQueries({
+    queries: [
+      {
+        // درخواست اول: دوره‌های ثبت‌نام شده کاربر
+        queryKey: ["userCourses"],
+        queryFn: async (): Promise<UserCourse[]> => {
+          const res = await api.get("/users/courses");
+          const rawData = res.data;
+          
+          if (Array.isArray(rawData)) {
+            return rawData;
+          } else if (rawData && typeof rawData === "object") {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const data = rawData as any;
+            return (
+              data.data ||
+              data.courses ||
+              data.enrollments ||
+              data.userCourses ||
+              []
+            );
+          }
+          return [];
+        },
+      },
+      {
+        // درخواست دوم: لیست تمام دوره‌ها
+        queryKey: ["courses"],
+        queryFn: async (): Promise<Course[]> => {
+          const res = await api.get<Course[]>("/courses");
+          return Array.isArray(res.data) ? res.data : [];
+        },
+      },
+    ],
+  });
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
+  // استخراج داده‌ها و وضعیت‌ها
+  const userCourses = enrollmentsQuery.data || [];
+  const courses = coursesQuery.data || [];
+  
+  const isLoading = enrollmentsQuery.isLoading || coursesQuery.isLoading;
+  const hasError = enrollmentsQuery.isError || coursesQuery.isError;
+  
+  const errorMessage =
+    (enrollmentsQuery.error as { response?: { data?: { message?: string } } })
+      ?.response?.data?.message ||
+    (coursesQuery.error as { response?: { data?: { message?: string } } })
+      ?.response?.data?.message ||
+    "خطا در دریافت اطلاعات";
 
-        // ۱. دریافت دوره‌های ثبت‌نام شده
-        const enrollmentsRes = await api.get("/users/courses");
-        const rawData = enrollmentsRes.data;
-        let enrollments: UserCourse[] = [];
+  // ✅ ساخت Map با useMemo (فقط وقتی courses تغییر کند)
+  const coursesMap = useMemo(() => {
+    const map = new Map<string, Course>();
+    courses.forEach((course) => {
+      map.set(String(course.id), course);
+    });
+    return map;
+  }, [courses]);
 
-        if (Array.isArray(rawData)) {
-          enrollments = rawData;
-        } else if (rawData && typeof rawData === "object") {
-          enrollments =
-            rawData.data ||
-            rawData.courses ||
-            rawData.enrollments ||
-            rawData.userCourses ||
-            [];
-        }
-        setUserCourses(enrollments);
-
-        // ۲. دریافت اطلاعات تمام دوره‌ها برای Merge کردن
-        const coursesRes = await api.get<Course[]>("/courses");
-        const map = new Map<string, Course>();
-
-        if (Array.isArray(coursesRes.data)) {
-          coursesRes.data.forEach((c: Course) => {
-            map.set(String(c.id), c);
-          });
-        }
-        setCoursesMap(map);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (err: any) {
-        console.error("❌ خطا در دریافت اطلاعات داشبورد:", err);
-        setError(err.response?.data?.message || "خطا در دریافت اطلاعات");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  if (loading)
+  // --- وضعیت‌های رندر ---
+  if (isLoading) {
     return (
       <div className="flex justify-center h-64">
         <Loader2 className="animate-spin text-blue-600 w-8 h-8" />
       </div>
     );
-  if (error)
+  }
+
+  if (hasError) {
     return (
       <div className="text-center text-red-600 p-4 bg-red-50 rounded-xl">
-        {error}
+        {errorMessage}
       </div>
     );
+  }
 
   return (
     <div className="space-y-8">
@@ -99,7 +115,7 @@ const Dashboard = () => {
               (enrollment as any).id ||
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (enrollment as any).courseId;
-            const courseIdStr = String(rawId || `fallback-${index}`); // تضمین می‌کنیم هرگز undefined نباشد
+            const courseIdStr = String(rawId || `fallback-${index}`);
 
             const course = coursesMap.get(courseIdStr);
 
@@ -116,7 +132,7 @@ const Dashboard = () => {
               );
             }
 
-            return <CourseCard course={course} enrollment={enrollment} />;
+            return <CourseCard key={courseIdStr} course={course} enrollment={enrollment} />;
           })}
         </div>
       )}

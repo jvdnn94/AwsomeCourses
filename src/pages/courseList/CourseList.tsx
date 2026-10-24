@@ -1,66 +1,68 @@
 // src/pages/CoursesList.tsx
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'; // ✅ هوک‌های جدید
 import type { Course } from '../../types/authtypes';
 import { BookOpen, Loader2, AlertCircle, PlusCircle } from 'lucide-react';
 import api from '../../utils/api';
 import { useAuth } from '../../context/authContext';
 
 const CoursesList = () => {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>('');
-  const [enrollingIds, setEnrollingIds] = useState<number[]>([]);
-  
   const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient(); // ✅ برای پاک کردن کش بعد از ثبت‌نام
 
-  useEffect(() => {
-    const fetchCourses = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get<Course[]>('/courses');
-        setCourses(response.data);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (err: any) {
-        setError(err.response?.data?.message || 'خطا در دریافت لیست دوره‌ها');
-      } finally {
-        setLoading(false);
-      }
-    };
+  // ✅ ۱. دریافت لیست دوره‌ها با useQuery
+  const {
+    data: courses = [],
+    isLoading,
+    isError,
+    error,
+  } = useQuery({
+    queryKey: ['courses'],
+    queryFn: async () => {
+      const response = await api.get<Course[]>('/courses');
+      return response.data;
+    },
+  });
 
-    fetchCourses();
-  }, []);
-
-  const handleEnroll = async (courseId: number) => {
-    if (!isAuthenticated) return;
-
-    // اضافه کردن به لیست در حال پردازش برای غیرفعال کردن دکمه
-    setEnrollingIds(prev => [...prev, courseId]);
-
-    try {
-      await api.post(`/users/courses/${courseId}`);
+  // ✅ ۲. ثبت‌نام در دوره با useMutation
+  const enrollMutation = useMutation({
+    mutationFn: (courseId: number) => api.post(`/users/courses/${courseId}`),
+    onSuccess: () => {
       alert('✅ با موفقیت در دوره ثبت‌نام کردید!');
-      
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      // دریافت پیام خطا از سرور (اگر وجود داشته باشد)
-      const serverMessage = err.response?.data?.message || '';
-      const statusCode = err.response?.status;
+      // ✅ بعد از ثبت‌نام موفق، کش دوره‌های کاربر را نامعتبر کن
+      queryClient.invalidateQueries({ queryKey: ['userCourses'] });
+    },
+    onError: (err: unknown) => {
+      const errorObj = err as { response?: { data?: { message?: string }; status?: number } };
+      const serverMessage = errorObj?.response?.data?.message || '';
+      const statusCode = errorObj?.response?.status;
 
-      // یا کد خطا 400 (Conflict) باشد، پیام اختصاصی نمایش میدهد
-      if (serverMessage.includes('قبلاً') || serverMessage.includes('already') || statusCode === 400) {
+      if (
+        serverMessage.includes('قبلاً') ||
+        serverMessage.includes('already') ||
+        statusCode === 409 ||
+        statusCode === 400
+      ) {
         alert('⚠️ شما قبلاً در این دوره ثبت‌نام کرده‌اید.');
       } else {
-        // در غیر این صورت، پیام خود سرور یا یک پیام عمومی را نشان بده
         alert(serverMessage || '❌ خطا در ثبت‌نام. لطفاً دوباره تلاش کنید.');
       }
-    } finally {
-      // حذف از لیست در حال پردازش (چه موفق باشد چه ناموفق)
-      setEnrollingIds(prev => prev.filter(id => id !== courseId));
-    }
+    },
+  });
+
+  // ✅ هندلر ثبت‌نام ساده‌تر
+  const handleEnroll = (courseId: number) => {
+    if (!isAuthenticated) return;
+    enrollMutation.mutate(courseId);
   };
 
-  if (loading) {
+  // ✅ تشخیص اینکه کدام دکمه در حال لودینگ است
+  const isEnrolling = (courseId: number) =>
+    enrollMutation.isPending && enrollMutation.variables === courseId;
+
+  // --- رندر ---
+
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600 ml-2" />
@@ -69,11 +71,13 @@ const CoursesList = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="max-w-md mx-auto mt-16 bg-red-50 border border-red-200 p-6 rounded-xl text-center">
         <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" />
-        <p className="text-red-600 font-medium">{error}</p>
+        <p className="text-red-600 font-medium">
+          {error instanceof Error ? error.message : 'خطا در دریافت لیست دوره‌ها'}
+        </p>
       </div>
     );
   }
@@ -84,15 +88,15 @@ const CoursesList = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-800 mb-2">کتابخانه دوره‌ها</h1>
           <p className="text-gray-600">
-            {isAuthenticated 
+            {isAuthenticated
               ? 'دوره مورد نظر خود را انتخاب کنید و روی "افزودن به دوره‌های من" کلیک کنید.'
               : 'برای مشاهده جزئیات و ثبت‌نام، ابتدا وارد شوید.'}
           </p>
         </div>
         {!isAuthenticated && (
-           <Link to="/auth" className="text-blue-600 hover:underline font-medium">
-             ورود / ثبت‌نام
-           </Link>
+          <Link to="/auth" className="text-blue-600 hover:underline font-medium">
+            ورود / ثبت‌نام
+          </Link>
         )}
       </div>
 
@@ -104,11 +108,11 @@ const CoursesList = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => {
-            const isEnrolling = enrollingIds.includes(course.id);
+            const enrollingThisCourse = isEnrolling(course.id);
 
             return (
-              <div 
-                key={course.id} 
+              <div
+                key={course.id}
                 className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 flex flex-col h-full hover:shadow-md transition-shadow duration-200"
               >
                 <div className="flex items-start gap-3 mb-4">
@@ -131,10 +135,10 @@ const CoursesList = () => {
                   {isAuthenticated ? (
                     <button
                       onClick={() => handleEnroll(course.id)}
-                      disabled={isEnrolling}
+                      disabled={enrollingThisCourse}
                       className="w-full bg-green-600 text-white py-2.5 rounded-lg hover:bg-green-700 transition font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isEnrolling ? (
+                      {enrollingThisCourse ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           در حال افزودن...

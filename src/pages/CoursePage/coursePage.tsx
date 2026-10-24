@@ -1,108 +1,121 @@
 // src/pages/UserCourseDetail.tsx
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"; // ✅ هوک‌های جدید
 import api from "../../utils/api";
 import { Loader2, CheckCircle, ArrowRight, Trophy, ArrowLeft } from "lucide-react";
 import type { Course, UserCourse } from "../../types/authtypes";
 
+// ✅ انتقال questions به بیرون کامپوننت (چون ثابت است و در هر render نباید دوباره ساخته شود)
+const QUESTIONS = [
+  { id: 1, text: "آیا ویدیوهای آموزشی این بخش را مشاهده کرده‌اید؟" },
+  { id: 2, text: "آیا تمرینات عملی مربوطه را انجام داده‌اید؟" },
+  { id: 3, text: "آیا نکات کلیدی دوره را یادداشت کرده‌اید؟" },
+  { id: 4, text: "آیا آمادگی شرکت در آزمون نهایی را دارید؟" },
+];
+
 const UserCourseDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-
-  const [course, setCourse] = useState<Course | null>(null);
-  const [enrollment, setEnrollment] = useState<UserCourse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  const queryClient = useQueryClient();
+  
   const [showCongrats, setShowCongrats] = useState(false);
 
-  const questions = [
-    { id: 1, text: "آیا ویدیوهای آموزشی این بخش را مشاهده کرده‌اید؟" },
-    { id: 2, text: "آیا تمرینات عملی مربوطه را انجام داده‌اید؟" },
-    { id: 3, text: "آیا نکات کلیدی دوره را یادداشت کرده‌اید؟" },
-    { id: 4, text: "آیا آمادگی شرکت در آزمون نهایی را دارید؟" },
-  ];
+  // ✅ ۱. دریافت اطلاعات دوره با useQuery
+  const {
+    data: course,
+    isLoading: isCourseLoading,
+  } = useQuery({
+    queryKey: ["course", id], // ✅ کلید کش با id (هر دوره کش مستقل دارد)
+    queryFn: async () => {
+      const res = await api.get<Course>(`/courses/${id}`);
+      return res.data;
+    },
+    enabled: !!id, // ✅ فقط وقتی id وجود دارد درخواست بفرست
+  });
 
-  useEffect(() => {
-    const fetchData = async () => {
+  // ✅ ۲. دریافت وضعیت ثبت‌نام با fallback هوشمند
+  const {
+    data: enrollment,
+    isLoading: isEnrollmentLoading,
+  } = useQuery({
+    queryKey: ["userEnrollment", id],
+    queryFn: async (): Promise<UserCourse | null> => {
       try {
-        setLoading(true);
-        
-        // ۱. دریافت اطلاعات دوره (این باید همیشه کار کند)
-        const courseRes = await api.get<Course>(`/courses/${id}`);
-        setCourse(courseRes.data);
-
-        // ۲. دریافت وضعیت ثبت‌نام با مکانیزم fallback (ضد خطا)
-        let foundEnrollment: UserCourse | null = null;
-        
-        try {
-          // تلاش اول: درخواست مستقیم (اگر بک‌اند پشتیبانی کند)
-          const enrollRes = await api.get<UserCourse>(`/users/courses/${id}`);
-          foundEnrollment = enrollRes.data;
-        } catch (err) {
-          console.warn(`⚠️ اندپوینت تکی کار نکرد، در حال جستجو در لیست دوره‌های کاربر...`);
-          console.log(`خطا:${err}`);
-          
-          ;
-          // تلاش دوم: دریافت لیست و پیدا کردن دوره مورد نظر (روش مطمئن داشبورد)
-          const allEnrollmentsRes = await api.get('/users/courses');
-          const rawData = allEnrollmentsRes.data;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const enrollments: any[] = Array.isArray(rawData) 
-            ? rawData 
-            : (rawData?.data || rawData?.courses || rawData?.enrollments || []);
-          
-          // پیدا کردن دوره‌ای که ID آن با ID صفحه یکی باشد
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          foundEnrollment = enrollments.find((e: any) => 
-            String(e.course_id || e.id || e.courseId) === String(id)
-          ) || null;
-        }
-        
-        setEnrollment(foundEnrollment);
-
+        // تلاش اول: درخواست مستقیم
+        const enrollRes = await api.get<UserCourse>(`/users/courses/${id}`);
+        return enrollRes.data;
       } catch (err) {
-        console.error("❌ خطا در دریافت اطلاعات دوره:", err);
-      } finally {
-        setLoading(false);
+        console.warn(`⚠️ اندپوینت تکی کار نکرد، در حال جستجو در لیست... خطای مشاهده شده:${err}`);
+        
+        // تلاش دوم: دریافت لیست و پیدا کردن دوره
+        const allRes = await api.get("/users/courses");
+        const rawData = allRes.data;
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const enrollments: any[] = Array.isArray(rawData)
+          ? rawData
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          : (rawData as any)?.data || (rawData as any)?.courses || [];
+
+        const found = enrollments.find(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (e: any) => String(e.course_id || e.id || e.courseId) === String(id)
+        );
+        return found || null;
       }
-    };
-    
-    if (id) fetchData();
-  }, [id]);
+    },
+    enabled: !!id,
+  });
 
-   const handleProgressUpdate = async () => {
-    if (!enrollment || !id) return;
-    setUpdating(true);
-
-    const newProgress = Math.min(enrollment.progress_percentage + 25, 100);
-    let newStatus = enrollment.status;
-    
-    if (newProgress === 100) newStatus = "completed";
-    else if (newProgress > 0) newStatus = "in_progress";
-
-    try {
-      // ✅ اصلاح شد: اضافه کردن /progress به انتهای آدرس تا با بک‌اند هماهنگ شود
-      await api.put(`/users/courses/${id}/progress`, {
+  // ✅ ۳. آپدیت پیشرفت با useMutation
+  const progressMutation = useMutation({
+    mutationFn: async ({ newProgress, newStatus }: { newProgress: number; newStatus: string }) => {
+      return api.put(`/users/courses/${id}/progress`, {
         progress: newProgress,
         status: newStatus,
       });
+    },
+    onSuccess: (_data, variables) => {
+      // ✅ آپدیت خوش‌بینانه کش enrollment بدون نیاز به درخواست مجدد
+      queryClient.setQueryData(["userEnrollment", id], (old: UserCourse | null) => {
+        if (!old) return old;
+        return {
+          ...old,
+          progress_percentage: variables.newProgress,
+          status: variables.newStatus,
+        };
+      });
 
-      setEnrollment((prev) =>
-        prev ? { ...prev, progress_percentage: newProgress, status: newStatus } : null
-      );
+      // ✅ نامعتبر کردن کش لیست دوره‌های کاربر (برای داشبورد)
+      queryClient.invalidateQueries({ queryKey: ["userCourses"] });
 
-      if (newProgress === 100) {
+      if (variables.newProgress === 100) {
         setShowCongrats(true);
       }
-    } catch (err: unknown) {
+    },
+    onError: (err: unknown) => {
       const errorMessage = err instanceof Error ? err.message : "خطای ناشناخته";
       alert(`خطا در بروزرسانی پیشرفت: ${errorMessage}`);
-    } finally {
-      setUpdating(false);
-    }
+    },
+  });
+
+  const handleProgressUpdate = () => {
+    if (!enrollment || !id) return;
+
+    const newProgress = Math.min(enrollment.progress_percentage + 25, 100);
+    let newStatus = enrollment.status;
+
+    if (newProgress === 100) newStatus = "completed";
+    else if (newProgress > 0) newStatus = "in_progress";
+
+    progressMutation.mutate({ newProgress, newStatus });
   };
 
-  if (loading) {
+  // --- وضعیت لودینگ ---
+  const isLoading = isCourseLoading || isEnrollmentLoading;
+
+  if (isLoading) {
     return (
       <div className="flex justify-center h-64">
         <Loader2 className="animate-spin text-blue-600 w-8 h-8" />
@@ -110,12 +123,15 @@ const UserCourseDetail = () => {
     );
   }
 
-  // ✅ تفکیک هوشمند خطاها: اگر خود دوره نیست، یا اگر کاربر ثبت‌نام نکرده
+  // ✅ تفکیک هوشمند خطاها
   if (!course) {
     return (
       <div className="text-center py-16">
         <h2 className="text-xl font-bold text-gray-800 mb-4">دوره‌ای با این شناسه یافت نشد.</h2>
-        <Link to="/courses" className="text-blue-600 hover:underline flex items-center justify-center gap-2">
+        <Link
+          to="/courses"
+          className="text-blue-600 hover:underline flex items-center justify-center gap-2"
+        >
           <ArrowLeft size={18} /> بازگشت به لیست دوره‌ها
         </Link>
       </div>
@@ -126,8 +142,13 @@ const UserCourseDetail = () => {
     return (
       <div className="text-center py-16 bg-white rounded-xl border border-dashed border-gray-300">
         <h2 className="text-xl font-bold text-gray-800 mb-2">شما در این دوره ثبت‌نام نکرده‌اید.</h2>
-        <p className="text-gray-600 mb-6">برای مشاهده چک‌لیست و پیشرفت، ابتدا باید در دوره ثبت‌نام کنید.</p>
-        <Link to="/courses" className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition">
+        <p className="text-gray-600 mb-6">
+          برای مشاهده چک‌لیست و پیشرفت، ابتدا باید در دوره ثبت‌نام کنید.
+        </p>
+        <Link
+          to="/courses"
+          className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
+        >
           ثبت‌نام در دوره‌ها
         </Link>
       </div>
@@ -139,7 +160,7 @@ const UserCourseDetail = () => {
       {/* هدر دوره */}
       <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
         <h1 className="text-3xl font-bold text-gray-900 mb-4">{course.Title}</h1>
-        
+
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1">
             <div className="flex justify-between text-sm font-medium text-gray-600 mb-2">
@@ -175,7 +196,7 @@ const UserCourseDetail = () => {
         </h2>
 
         <div className="space-y-4">
-          {questions.map((q: { id: number; text: string }) => {
+          {QUESTIONS.map((q) => {
             const isAnswered = enrollment.progress_percentage >= q.id * 25;
             const shouldBeVisible = enrollment.progress_percentage >= (q.id - 1) * 25;
 
@@ -201,11 +222,20 @@ const UserCourseDetail = () => {
                   ) : (
                     <button
                       onClick={handleProgressUpdate}
-                      disabled={updating}
+                      disabled={progressMutation.isPending} // ✅ استفاده از isPending
                       className="flex items-center gap-2 bg-white border border-blue-200 text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition text-sm font-medium disabled:opacity-50"
                     >
-                      بله، انجام دادم
-                      <ArrowRight size={16} />
+                      {progressMutation.isPending ? (
+                        <>
+                          <Loader2 size={16} className="animate-spin" />
+                          در حال ثبت...
+                        </>
+                      ) : (
+                        <>
+                          بله، انجام دادم
+                          <ArrowRight size={16} />
+                        </>
+                      )}
                     </button>
                   )}
                 </div>

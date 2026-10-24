@@ -1,6 +1,7 @@
 // src/pages/AuthPage.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useMutation } from '@tanstack/react-query'; // ✅ هوک جدید
 import { Loader2, Mail, Lock, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../context/authContext';
 
@@ -9,37 +10,66 @@ const AuthPage = () => {
   const [name, setName] = useState<string>('');
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
-  const [error, setError] = useState<string>('');
-  const [loading, setLoading] = useState<boolean>(false);
 
   const { login, register } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      if (mode === 'login') {
-        await login({ email, password });
-      } else {
-        await register({ name, email, password });
-      }
-      // بعد از موفقیت، به صفحه اصلی برو
+  // ✅ Mutation برای ورود
+  const loginMutation = useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) =>
+      login({ email, password }),
+    onSuccess: () => {
       navigate('/');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      setError(err.response?.data?.message || 'خطایی رخ داد. لطفاً دوباره تلاش کنید.');
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  // ✅ Mutation برای ثبت‌نام
+  const registerMutation = useMutation({
+    mutationFn: ({
+      name,
+      email,
+      password,
+    }: {
+      name: string;
+      email: string;
+      password: string;
+    }) => register({ name, email, password }),
+    onSuccess: () => {
+      navigate('/');
+    },
+  });
+
+  // ✅ انتخاب mutation فعال بر اساس حالت فعلی
+  const activeMutation = mode === 'login' ? loginMutation : registerMutation;
+
+  // ✅ استخراج وضعیت از mutation
+  const isLoading = activeMutation.isPending;
+  const error = activeMutation.error;
+
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (mode === 'login') {
+      loginMutation.mutate({ email, password });
+    } else {
+      registerMutation.mutate({ name, email, password });
     }
   };
 
   const toggleMode = () => {
     setMode(mode === 'login' ? 'register' : 'login');
-    setError(''); // پاک کردن پیام خطا هنگام تغییر حالت
-    setPassword(''); // پاک کردن رمز عبور
+    setPassword('');
+    // ✅ پاک کردن خطا هنگام تغییر حالت
+    loginMutation.reset();
+    registerMutation.reset();
+  };
+
+  // ✅ استخراج پیام خطا از mutation
+  const getErrorMessage = (): string => {
+    if (!error) return '';
+    
+    const errorObj = error as { response?: { data?: { message?: string } } };
+    return errorObj?.response?.data?.message || 'خطایی رخ داد. لطفاً دوباره تلاش کنید.';
   };
 
   return (
@@ -59,7 +89,7 @@ const AuthPage = () => {
         {/* Error Message */}
         {error && (
           <div className="bg-red-50 border-r-4 border-red-500 text-red-700 p-4 rounded-l-lg text-sm">
-            {error}
+            {getErrorMessage()}
           </div>
         )}
 
@@ -84,6 +114,7 @@ const AuthPage = () => {
                   onChange={(e) => setName(e.target.value)}
                   className="appearance-none block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none transition sm:text-sm"
                   placeholder="علی محمدی"
+                  disabled={isLoading}
                 />
               </div>
             </div>
@@ -107,6 +138,7 @@ const AuthPage = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="appearance-none block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none transition sm:text-sm"
                 placeholder="example@email.com"
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -130,6 +162,7 @@ const AuthPage = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="appearance-none block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 outline-none transition sm:text-sm"
                 placeholder="••••••••"
+                disabled={isLoading}
               />
             </div>
           </div>
@@ -137,10 +170,10 @@ const AuthPage = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={loading}
+            disabled={isLoading}
             className="group relative w-full flex justify-center py-2.5 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            {loading ? (
+            {isLoading ? (
               <>
                 <Loader2 className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" />
                 لطفاً صبر کنید...
@@ -158,14 +191,22 @@ const AuthPage = () => {
           {mode === 'login' ? (
             <p className="text-sm text-gray-600">
               حساب کاربری ندارید؟{' '}
-              <button onClick={toggleMode} className="font-medium text-blue-600 hover:text-blue-500 transition">
+              <button 
+                onClick={toggleMode} 
+                disabled={isLoading}
+                className="font-medium text-blue-600 hover:text-blue-500 transition disabled:opacity-50"
+              >
                 همین حالا ثبت‌نام کنید
               </button>
             </p>
           ) : (
             <p className="text-sm text-gray-600">
               قبلاً ثبت‌نام کرده‌اید؟{' '}
-              <button onClick={toggleMode} className="font-medium text-blue-600 hover:text-blue-500 transition">
+              <button 
+                onClick={toggleMode} 
+                disabled={isLoading}
+                className="font-medium text-blue-600 hover:text-blue-500 transition disabled:opacity-50"
+              >
                 وارد شوید
               </button>
             </p>
